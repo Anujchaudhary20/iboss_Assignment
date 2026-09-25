@@ -165,6 +165,21 @@ The service will start on port `8085`.
 
 ## API Testing Guide
 
+### 0. Automated All-In-One Test Suite
+You can execute the automated end-to-end verification script with a single command while the service is running:
+```bash
+python3 test_live_service.py
+```
+This script automatically runs:
+1. Trader authentication and JWT retrieval
+2. Admin authentication and JWT retrieval
+3. Top 20 spot tickers validation (sorted strictly descending by 24h volume)
+4. Depth-5 order book validation (asks/bids structure)
+5. RBAC authorization tests (Trader forbidden from Admin endpoints)
+6. WebSocket single-session enforcement (First connection accepted with HTTP 101, duplicate connection strictly rejected with HTTP 409 Conflict)
+
+---
+
 ### 1. Interactive Swagger UI
 Open your browser to:
 ```
