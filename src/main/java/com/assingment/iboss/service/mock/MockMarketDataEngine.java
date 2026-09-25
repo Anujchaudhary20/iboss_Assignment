@@ -7,6 +7,8 @@ import com.assingment.iboss.model.okx.OkxWsMessage;
 import com.assingment.iboss.service.MarketDataProvider;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.Cacheable;
+import com.assingment.iboss.config.RedisConfig;
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
@@ -101,6 +103,7 @@ public class MockMarketDataEngine implements MarketDataProvider {
     }
 
     @Override
+    @Cacheable(value = RedisConfig.CACHE_TICKERS, unless = "#result == null")
     public OkxResponse<OkxTicker> getTop20Tickers() {
         List<OkxTicker> tickers = new ArrayList<>();
         long now = System.currentTimeMillis();
@@ -146,6 +149,7 @@ public class MockMarketDataEngine implements MarketDataProvider {
     }
 
     @Override
+    @Cacheable(value = RedisConfig.CACHE_ORDERBOOK, key = "#pair", unless = "#result == null")
     public OkxOrderBookData getOrderBookSnapshot(String pair) {
         TickerState state = tickerStates.get(pair);
         if (state == null) {
@@ -190,6 +194,7 @@ public class MockMarketDataEngine implements MarketDataProvider {
     }
 
     @Override
+    @Cacheable(value = RedisConfig.CACHE_PAIRS, unless = "#result == null")
     public List<String> getSupportedPairs() {
         return Collections.unmodifiableList(pairRankings);
     }
