@@ -180,7 +180,22 @@ This script automatically runs:
 
 ---
 
-### 1. Interactive Swagger UI
+### 1. Ready-to-Use Postman Collection
+A pre-configured Postman collection and environment are bundled in the repository root:
+- Collection: [`postman_collection.json`](file:///Users/anujsingh/Desktop/Projects/Assignment/iboss/postman_collection.json)
+- Environment: [`postman_environment.json`](file:///Users/anujsingh/Desktop/Projects/Assignment/iboss/postman_environment.json)
+
+**How to Use in Postman:**
+1. Open Postman and click **Import** (top left).
+2. Select or drag-and-drop `postman_collection.json` and `postman_environment.json`.
+3. Select the imported environment **Market Data Service Local (Port 8085)**.
+4. Execute `Login - Trader 1`: the test script will automatically store the JWT in `{{jwt_token}}`.
+5. Execute any market data, orderbook, or admin request with automatic authentication!
+6. For WebSocket testing in Postman, create a new **WebSocket Request**, connect to `ws://localhost:8085/ws/market?token={{jwt_token}}`, and send `{"op": "subscribe", "args": [{"channel": "books5", "instId": "BTC-USDT"}]}`.
+
+---
+
+### 2. Interactive Swagger UI
 Open your browser to:
 ```
 http://localhost:8085/swagger-ui.html

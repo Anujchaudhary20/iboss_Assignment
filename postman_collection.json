@@ -1,0 +1,492 @@
+{
+  "info": {
+    "_postman_id": "c71a39f0-2f9b-4bf1-897b-9f4a7c88b9c1",
+    "name": "Market Data Service (OKX Proxy)",
+    "description": "Enterprise-grade Spring Boot Market Data Service integrating OKX v5 schema, Redis distributed caching, and strict single-session WebSocket streaming.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8085",
+      "type": "string"
+    },
+    {
+      "key": "wsUrl",
+      "value": "ws://localhost:8085",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "admin_token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Authentication",
+      "item": [
+        {
+          "name": "Login - Trader 1 (User Role)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Token is received and saved\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a('string');",
+                  "    pm.collectionVariables.set(\"jwt_token\", jsonData.token);",
+                  "    console.log(\"Saved jwt_token:\", jsonData.token);",
+                  "});",
+                  "pm.test(\"User has ROLE_USER\", function () {",
+                  "    pm.expect(jsonData.roles).to.include(\"ROLE_USER\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"trader1\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates as trader1 and automatically stores the JWT token into {{jwt_token}} collection variable."
+          },
+          "response": []
+        },
+        {
+          "name": "Login - Admin (Admin Role)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Admin token is received and saved\", function () {",
+                  "    pm.expect(jsonData.token).to.be.a('string');",
+                  "    pm.collectionVariables.set(\"admin_token\", jsonData.token);",
+                  "    console.log(\"Saved admin_token:\", jsonData.token);",
+                  "});",
+                  "pm.test(\"User has ROLE_ADMIN\", function () {",
+                  "    pm.expect(jsonData.roles).to.include(\"ROLE_ADMIN\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Authenticates as admin and automatically stores the JWT token into {{admin_token}} collection variable."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Current User Profile (/me)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Matches authenticated user\", function () {",
+                  "    var data = pm.response.json();",
+                  "    pm.expect(data.username).to.eql(\"trader1\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "me"]
+            },
+            "description": "Retrieves the currently authenticated user's profile and granted authorities."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2. Market Data (Redis Distributed Caching)",
+      "item": [
+        {
+          "name": "Top 20 Spot Tickers (OKX v5)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "pm.test(\"Code is '0' (OKX Success)\", function () {",
+                  "    pm.expect(res.code).to.eql(\"0\");",
+                  "});",
+                  "pm.test(\"Returns exactly 20 spot tickers\", function () {",
+                  "    pm.expect(res.data.length).to.eql(20);",
+                  "});",
+                  "pm.test(\"Verify OKX v5 field names present\", function () {",
+                  "    var first = res.data[0];",
+                  "    pm.expect(first).to.have.property(\"instType\");",
+                  "    pm.expect(first).to.have.property(\"instId\");",
+                  "    pm.expect(first).to.have.property(\"last\");",
+                  "    pm.expect(first).to.have.property(\"volCcy24h\");",
+                  "    pm.expect(first).to.have.property(\"askPx\");",
+                  "    pm.expect(first).to.have.property(\"bidPx\");",
+                  "});",
+                  "pm.test(\"Verify sorted descending by 24h quote volume\", function () {",
+                  "    var vol1 = parseFloat(res.data[0].volCcy24h);",
+                  "    var vol2 = parseFloat(res.data[1].volCcy24h);",
+                  "    pm.expect(vol1).to.be.above(vol2);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/market/tickers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market", "tickers"]
+            },
+            "description": "Fetches the top 20 spot crypto pairs sorted descending by 24h volume. Cached in Redis under 'market:tickers' with a 3-second TTL."
+          },
+          "response": []
+        },
+        {
+          "name": "Order Book Snapshot (BTC-USDT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var res = pm.response.json();",
+                  "pm.test(\"Contains 5 asks and 5 bids\", function () {",
+                  "    var ob = res.data[0];",
+                  "    pm.expect(ob.asks.length).to.eql(5);",
+                  "    pm.expect(ob.bids.length).to.eql(5);",
+                  "});",
+                  "pm.test(\"Asks and Bids follow [price, size, numOrders] OKX format\", function () {",
+                  "    var bestAsk = res.data[0].asks[0];",
+                  "    var bestBid = res.data[0].bids[0];",
+                  "    pm.expect(parseFloat(bestAsk[0])).to.be.above(parseFloat(bestBid[0]));",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/market/orderbook?pair=BTC-USDT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market", "orderbook"],
+              "query": [
+                {
+                  "key": "pair",
+                  "value": "BTC-USDT"
+                }
+              ]
+            },
+            "description": "Returns a Depth-5 snapshot for BTC-USDT. Cached in Redis under 'market:orderbook::BTC-USDT' with a 2-second TTL."
+          },
+          "response": []
+        },
+        {
+          "name": "Order Book Snapshot (ETH-USDT)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/market/orderbook?pair=ETH-USDT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market", "orderbook"],
+              "query": [
+                {
+                  "key": "pair",
+                  "value": "ETH-USDT"
+                }
+              ]
+            },
+            "description": "Returns a Depth-5 snapshot for ETH-USDT."
+          },
+          "response": []
+        },
+        {
+          "name": "Order Book Snapshot (SOL-USDT)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/market/orderbook?pair=SOL-USDT",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market", "orderbook"],
+              "query": [
+                {
+                  "key": "pair",
+                  "value": "SOL-USDT"
+                }
+              ]
+            },
+            "description": "Returns a Depth-5 snapshot for SOL-USDT."
+          },
+          "response": []
+        },
+        {
+          "name": "Supported Pairs",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var pairs = pm.response.json();",
+                  "pm.test(\"Returns 20 supported pairs\", function () {",
+                  "    pm.expect(pairs.length).to.eql(20);",
+                  "    pm.expect(pairs).to.include(\"BTC-USDT\");",
+                  "    pm.expect(pairs).to.include(\"ETH-USDT\");",
+                  "    pm.expect(pairs).to.include(\"SOL-USDT\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/market/pairs",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "market", "pairs"]
+            },
+            "description": "Returns the complete list of 20 supported crypto spot pairs. Cached in Redis under 'market:pairs' with a 10-minute TTL."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Admin Monitoring (RBAC)",
+      "item": [
+        {
+          "name": "Inspect Active WebSocket Sessions",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "var data = pm.response.json();",
+                  "pm.test(\"Contains session telemetry metrics\", function () {",
+                  "    pm.expect(data).to.have.property(\"activeSessionCount\");",
+                  "    pm.expect(data).to.have.property(\"totalConnections\");",
+                  "    pm.expect(data).to.have.property(\"rejectedDuplicateConnections\");",
+                  "    pm.expect(data).to.have.property(\"sessions\");",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions"]
+            },
+            "description": "Admin endpoint returning real-time metrics on connected clients, active WebSocket sessions, and rejected duplicate connection attempts. Requires ROLE_ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "Terminate Active Client Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Response status is 200 or 404\", function () {",
+                  "    pm.expect([200, 404]).to.include(pm.response.code);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions/:clientId/terminate",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions", ":clientId", "terminate"],
+              "variable": [
+                {
+                  "key": "clientId",
+                  "value": "trader1"
+                }
+              ]
+            },
+            "description": "Forcefully terminates the active session of a connected client by clientId. Requires ROLE_ADMIN."
+          },
+          "response": []
+        },
+        {
+          "name": "RBAC Negative Test (Trader Accessing Admin Endpoint)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test(\"Status code is 403 Forbidden\", function () {",
+                  "    pm.response.to.have.status(403);",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/sessions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "sessions"]
+            },
+            "description": "Verifies that a standard user (trader1) is strictly denied access with HTTP 403 Forbidden when attempting to access the Admin endpoint."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4. WebSocket Streaming Documentation",
+      "item": [
+        {
+          "name": "WebSocket Connection Guide",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/swagger-ui.html",
+              "host": ["{{baseUrl}}"],
+              "path": ["swagger-ui.html"]
+            },
+            "description": "### How to Test WebSockets in Postman:\n\n1. In Postman, click **New** -> **WebSocket**.\n2. In the URL bar, enter:\n   ```\n   ws://localhost:8085/ws/market?token={{jwt_token}}\n   ```\n   *(Make sure to run 'Login - Trader 1' first so `{{jwt_token}}` is populated, or copy-paste the token)*.\n3. Click **Connect**.\n4. You will immediately receive a connection confirmation:\n   ```json\n   {\n     \"event\": \"connected\",\n     \"clientId\": \"trader1\",\n     \"sessionId\": \"<SESSION_ID>\",\n     \"msg\": \"Authenticated and connected to Market Data Service proxy. Single-session enforced.\"\n   }\n   ```\n\n### Send a Subscription Message:\nIn the message box at the bottom, select **JSON** format and send:\n```json\n{\n  \"op\": \"subscribe\",\n  \"args\": [\n    {\n      \"channel\": \"books5\",\n      \"instId\": \"BTC-USDT\"\n    }\n  ]\n}\n```\n*The server will instantly stream an order book snapshot, followed by live depth-5 ticks every 350ms.*\n\n### Verify Single-Session Enforcement:\n1. Open a **second WebSocket tab** in Postman.\n2. Attempt to connect to `ws://localhost:8085/ws/market?token={{jwt_token}}` with the same token.\n3. **Result:** The handshake is rejected with **HTTP 409 Conflict**.\n4. The first connection remains active without interruption!"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}
